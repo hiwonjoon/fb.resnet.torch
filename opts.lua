@@ -49,6 +49,12 @@ function M.parse(arg)
    cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')
    cmd:option('-resetClassifier', 'false', 'Reset the fully connected layer for fine-tuning')
    cmd:option('-nClasses',         0,      'Number of classes in the dataset')
+   ---------- Test options ----------------------------------
+   cmd:option('-testSet',          'false',        'Run on test set')
+   ---------- Reinforce options ----------------------------------
+   cmd:option('-reinforce',        'false',        'Do reinforcement learning')
+   cmd:option('-taxonomy',        '',        'Do reinforcement learning')
+   cmd:option('-rewardScale',        0.0,        'Do reinforcement learning')
    cmd:text()
 
    local opt = cmd:parse(arg or {})
@@ -95,6 +101,14 @@ function M.parse(arg)
    if opt.shareGradInput and opt.optnet then
       cmd:error('error: cannot use both -shareGradInput and -optnet')
    end
+
+   --if opt.reinforce and not paths.filep(opt.taxonomy) then
+   --   cmd:error('error: missing taxonomy file')
+   --end
+
+   --if opt.reinforce and opt.rewardScale == 0.0 then
+   --   cmd:error('error: missing reward sacle')
+   --end
 
    return opt
 end

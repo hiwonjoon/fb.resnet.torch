@@ -11,8 +11,11 @@
 --
 
 require 'nn'
+require 'dp'
 require 'cunn'
 require 'cudnn'
+require './taxonomy'
+require './VRTaxonomyReward'
 
 local M = {}
 
@@ -65,6 +68,29 @@ function M.setup(opt, checkpoint)
       model:remove(#model.modules)
       model:add(linear:cuda())
    end
+   if opt.reinforce and torch.type(model:get(#model.modules)) ~= 'concat' then
+      print ' => Add Reinforce Module!'
+      model:add(nn.SoftMax())
+      model:add(nn.ReinforceCategorical(true)) --pick based on probability
+
+      -- 2-way loss가 가능하지만, 일단은 순수한 reinforce만.
+      --model:add(nn.LogSoftMax())
+
+      -- add the baseline reward predictor
+      seq = nn.Sequential()
+      seq:add(nn.Constant(1,1))
+      seq:add(nn.Add(1))
+      --concat = nn.ConcatTable():add(nn.Identity()):add(seq)
+      --concat2 = nn.ConcatTable():add(nn.Identity()):add(concat)
+
+      ---- output will be : {classpred, {classpred, basereward}}
+      --agent:add(concat2)
+
+      --output will be : {stochastic_classpred, basereward}
+      concat = nn.ConcatTable():add(nn.Identity()):add(seq)
+      model:add(concat)
+      model:cuda()
+   end
 
    -- Set the CUDNN flags
    if opt.cudnn == 'fastest' then
@@ -93,8 +119,14 @@ function M.setup(opt, checkpoint)
       model = dpt:cuda()
    end
 
-   local criterion = nn.CrossEntropyCriterion():cuda()
-   return model, criterion
+   if opt.reinforce then
+      local taxonomy = Taxonomy(opt)
+      local criterion = nn.VRTaxonomyReward(model, taxonomy, opt.rewardScale):cuda() -- REINFORCE
+      return model, criterion
+   else
+      local criterion = nn.CrossEntropyCriterion():cuda()
+      return model, criterion
+   end
 end
 
 function M.shareGradInput(model)

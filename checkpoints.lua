@@ -41,6 +41,22 @@ function checkpoint.latest(opt)
    return latest, optimState
 end
 
+function checkpoint.best(opt)
+   if opt.resume == 'none' then
+      return nil
+   end
+
+   local bestPath = paths.concat(opt.resume, 'model_best.t7')
+   if not paths.filep(bestPath) then
+      return nil
+   end
+
+   print('=> Loading checkpoint ' .. bestPath)
+   local best = torch.load(bestPath)
+
+   return best
+end
+
 function checkpoint.save(epoch, model, optimState, isBestModel, opt)
    -- don't save the DataParallelTable for easier loading on other machines
    if torch.type(model) == 'nn.DataParallelTable' then

@@ -46,10 +46,21 @@ local bestTop1 = math.huge
 local bestTop5 = math.huge
 for epoch = startEpoch, opt.nEpochs do
    -- Train for a single epoch
-   local trainTop1, trainTop5, trainLoss = trainer:train(epoch, trainLoader)
+
+   local trainTop1, trainTop5, trainLoss, reward
+   if( opt.reinforce ) then
+      trainTop1, trainLoss, reward  = trainer:train_reinforce(epoch, trainLoader)
+   else
+      trainTop1, trainTop5, trainLoss = trainer:train(epoch, trainLoader)
+   end
 
    -- Run model on validation set
-   local testTop1, testTop5 = trainer:test(epoch, valLoader)
+   local testTop1, testTop5
+   if( opt.reinforce ) then
+       testTop1, testTop5 = trainer:test_reinforce(epoch, valLoader)
+   else
+       testTop1, testTop5 = trainer:test(epoch, valLoader)
+   end
 
    local bestModel = false
    if testTop1 < bestTop1 then

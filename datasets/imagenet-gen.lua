@@ -85,6 +85,49 @@ local function findImages(dir, classToIdx)
    return imagePath, imageClass
 end
 
+local function findTestImages(dir)
+   local imagePath = torch.CharTensor()
+   local imageClass = torch.LongTensor()
+
+   ----------------------------------------------------------------------
+   -- Options for the GNU and BSD find command
+   local extensionList = {'jpg', 'png', 'jpeg', 'JPG', 'PNG', 'JPEG', 'ppm', 'PPM', 'bmp', 'BMP'}
+   local findOptions = ' -iname "*.' .. extensionList[1] .. '"'
+   for i=2,#extensionList do
+      findOptions = findOptions .. ' -o -iname "*.' .. extensionList[i] .. '"'
+   end
+
+   -- Find all the images using the find command
+   local f = io.popen('find -L ' .. dir .. findOptions)
+
+   local maxLength = -1
+   local imagePaths = {}
+
+   -- Generate a list of all the images and their class
+   while true do
+      local line = f:read('*line')
+      if not line then break end
+
+      local filename = paths.basename(line)
+      local path = dir .. '/' .. filename
+
+      table.insert(imagePaths, path)
+
+      maxLength = math.max(maxLength, #path + 1)
+   end
+
+   f:close()
+
+   -- Convert the generated list to a tensor for faster loading
+   local nImages = #imagePaths
+   local imagePath = torch.CharTensor(nImages, maxLength):zero()
+   for i, path in ipairs(imagePaths) do
+      ffi.copy(imagePath[i]:data(), path)
+   end
+
+   return imagePath
+end
+
 function M.exec(opt, cacheFile)
    -- find the image path names
    local imagePath = torch.CharTensor()  -- path to each image in dataset
@@ -92,11 +135,21 @@ function M.exec(opt, cacheFile)
 
    local trainDir = paths.concat(opt.data, 'train')
    local valDir = paths.concat(opt.data, 'val')
+   local testDir = paths.concat(opt.data, 'test')
    assert(paths.dirp(trainDir), 'train directory not found: ' .. trainDir)
    assert(paths.dirp(valDir), 'val directory not found: ' .. valDir)
+   if( paths.dirp(testDir) == nil) then
+       print ('test directory not found: ' .. testDir ..' skipping...')
+   end
 
    print("=> Generating list of images")
    local classList, classToIdx = findClasses(trainDir)
+
+   local testImagePath
+   if( paths.dirp(testDir) ) then
+       print(" | finding all test images")
+       testImagePath = findTestImages(testDir)
+   end
 
    print(" | finding all validation images")
    local valImagePath, valImageClass = findImages(valDir, classToIdx)
@@ -115,6 +168,9 @@ function M.exec(opt, cacheFile)
          imagePath = valImagePath,
          imageClass = valImageClass,
       },
+      test = {
+         imagePath = testImagePath
+      }
    }
 
    print(" | saving list of images to " .. cacheFile)

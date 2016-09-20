@@ -8,6 +8,7 @@
 --
 --  The training loop and learning rate schedule
 --
+local ffi = require 'ffi'
 
 local optim = require 'optim'
 
@@ -82,6 +83,66 @@ function Trainer:train(epoch, dataloader)
    return top1Sum / N, top5Sum / N, lossSum / N
 end
 
+function Trainer:train_reinforce(epoch, dataloader)
+   -- Trains the model for a single epoch
+   self.optimState.learningRate = self:learningRate(epoch)
+
+   local timer = torch.Timer()
+   local dataTimer = torch.Timer()
+
+   local function feval()
+      return self.criterion.output, self.gradParams
+   end
+
+   local trainSize = dataloader:size()
+   local top1Sum, rewardSum, lossSum = 0.0, 0.0, 0.0
+   local N = 0
+
+   print('=> Training epoch # ' .. epoch)
+   -- set the batch norm to training mode
+   self.model:training()
+   for n, sample in dataloader:run() do
+      local dataTime = dataTimer:time().real
+
+      -- Copy input and target to the GPU
+      self:copyInputs(sample)
+
+      --local output = self.model:forward(self.input):float()
+      --local batchSize = output:size(1)
+      --local loss = self.criterion:forward(self.model.output, self.target)
+      local pred, reward = unpack(self.model:forward(self.input))
+      local batchSize = pred:size(1)
+      local loss = self.criterion:forward(self.model.output, self.target)
+
+      self.model:zeroGradParameters()
+      self.criterion:backward(self.model.output, self.target)
+      self.model:backward(self.input, self.criterion.gradInput)
+
+      optim.sgd(feval, self.params, self.optimState)
+
+      -- TODO : 중간에서 softmax값 뺴오는게 가능할 거야.
+      --local top1, top5 = self:computeScore(output, sample.target, 1)
+      local correct = pred:eq(self.target:view(batchSize, 1):expandAs(pred))
+
+      -- Top-1 score
+      local top1 = (1.0 - (correct:narrow(2, 1, 1):sum() / batchSize)) * 100
+      top1Sum = top1Sum + top1*batchSize
+      rewardSum = rewardSum + reward:sum()
+      lossSum = lossSum + loss*batchSize
+      N = N + batchSize
+
+      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  reward %7.3f'):format(
+         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, reward[1][1]))
+
+      -- check that the storage didn't get changed do to an unfortunate getParameters call
+      assert(self.params:storage() == self.model:parameters()[1]:storage())
+
+      timer:reset()
+      dataTimer:reset()
+   end
+
+   return top1Sum / N, rewardSum / N, lossSum / N
+end
 function Trainer:test(epoch, dataloader)
    -- Computes the top-1 and top-5 err on the validation set
 
@@ -121,6 +182,85 @@ function Trainer:test(epoch, dataloader)
       epoch, top1Sum / N, top5Sum / N))
 
    return top1Sum / N, top5Sum / N
+end
+
+function Trainer:test_reinforce(epoch, dataloader)
+   -- Computes the top-1 and top-5 err on the validation set
+
+   local timer = torch.Timer()
+   local dataTimer = torch.Timer()
+   local size = dataloader:size()
+
+   local nCrops = self.opt.tenCrop and 10 or 1
+   local top1Sum, top5Sum = 0.0, 0.0
+   local N = 0
+
+   self.model:evaluate()
+   for n, sample in dataloader:run() do
+      local dataTime = dataTimer:time().real
+
+      -- Copy input and target to the GPU
+      self:copyInputs(sample)
+
+      local output,reward = unpack(self.model:forward(self.input))
+      local batchSize = output:size(1) / nCrops
+      --local loss = self.criterion:forward(self.model.output, self.target)
+
+      local top1, top5 = self:computeScore(output, sample.target, nCrops)
+      top1Sum = top1Sum + top1*batchSize
+      top5Sum = top5Sum + top5*batchSize
+      N = N + batchSize
+
+      print((' | Test: [%d][%d/%d]    Time %.3f  Data %.3f  top1 %7.3f (%7.3f)  top5 %7.3f (%7.3f)'):format(
+         epoch, n, size, timer:time().real, dataTime, top1, top1Sum / N, top5, top5Sum / N))
+
+      timer:reset()
+      dataTimer:reset()
+   end
+   self.model:training()
+
+   print((' * Finished epoch # %d     top1: %7.3f  top5: %7.3f\n'):format(
+      epoch, top1Sum / N, top5Sum / N))
+
+   return top1Sum / N, top5Sum / N
+end
+function Trainer:getPredictions(output, nCrops)
+   if nCrops > 1 then
+      -- Sum over crops
+      output = output:view(output:size(1) / nCrops, nCrops, output:size(2))
+         --:exp()
+         :sum(2):squeeze(2)
+   end
+   _, indices = torch.max(output, 2)
+   return indices
+   --print indices
+   --return output:float():sort(2, true) -- descending
+end
+
+function Trainer:real_test(epoch, dataloader)
+   local timer = torch.Timer()
+   local dataTimer = torch.Timer()
+   local size = dataloader:size()
+
+   local nCrops = self.opt.tenCrop and 10 or 1
+   local N = 0
+
+   self.model:evaluate()
+   for n, sample in dataloader:run() do
+      -- Copy input and target to the GPU
+      self:copyInputs(sample)
+
+      local output = self.model:forward(self.input):float()
+      local batchSize = output:size(1) / nCrops
+      --local loss = self.criterion:forward(self.model.output, self.target)
+
+      local predictions = self:getPredictions(output,nCrops)
+      for i=1,batchSize do
+          print(ffi.string(sample.path[i]:data()), predictions[i][1])
+      end
+
+      N = N + batchSize
+   end
 end
 
 function Trainer:computeScore(output, target, nCrops)

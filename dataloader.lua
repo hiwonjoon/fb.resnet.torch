@@ -13,6 +13,7 @@ local datasets = require 'datasets/init'
 local Threads = require 'threads'
 Threads.serialization('threads.sharedserialize')
 
+
 local M = {}
 local DataLoader = torch.class('resnet.DataLoader', M)
 
@@ -20,7 +21,13 @@ function DataLoader.create(opt)
    -- The train and val loader
    local loaders = {}
 
-   for i, split in ipairs{'train', 'val'} do
+   local sets
+   if opt.testSet then
+       sets = {'train','val','test'}
+   else
+       sets = {'train','val'}
+   end
+   for i, split in ipairs(sets) do
       local dataset = datasets.create(opt, split)
       loaders[i] = M.DataLoader(dataset, opt, split)
    end
@@ -44,7 +51,8 @@ function DataLoader:__init(dataset, opt, split)
    end
 
    local threads, sizes = Threads(opt.nThreads, init, main)
-   self.nCrops = (split == 'val' and opt.tenCrop) and 10 or 1
+   self.nCrops = ((split == 'val' or split == 'test') and opt.tenCrop) and 10 or 1
+   self.split = split
    self.threads = threads
    self.__size = sizes[1][1]
    self.batchSize = math.floor(opt.batchSize / self.nCrops)
@@ -64,10 +72,14 @@ function DataLoader:run()
       while idx <= size and threads:acceptsjob() do
          local indices = perm:narrow(1, idx, math.min(batchSize, size - idx + 1))
          threads:addjob(
-            function(indices, nCrops)
+            function(indices, nCrops, split)
+               local ffi = require 'ffi'
                local sz = indices:size(1)
-               local batch, imageSize
+               local batch, imageSize, path
                local target = torch.IntTensor(sz)
+               if split == 'test' then
+                   path = torch.CharTensor(sz,256) --TODO : change this to maximum length
+               end
                for i, idx in ipairs(indices:totable()) do
                   local sample = _G.dataset:get(idx)
                   local input = _G.preprocess(sample.input)
@@ -78,18 +90,23 @@ function DataLoader:run()
                   end
                   batch[i]:copy(input)
                   target[i] = sample.target
+                  if split == 'test' then
+                     ffi.copy(path[i]:data(), sample.path)
+                 end
                end
                collectgarbage()
                return {
                   input = batch:view(sz * nCrops, table.unpack(imageSize)),
                   target = target,
+                  path = path,
                }
             end,
             function(_sample_)
                sample = _sample_
             end,
             indices,
-            self.nCrops
+            self.nCrops,
+            self.split
          )
          idx = idx + batchSize
       end
