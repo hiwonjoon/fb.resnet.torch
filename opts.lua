@@ -54,7 +54,8 @@ function M.parse(arg)
    ---------- Reinforce options ----------------------------------
    cmd:option('-reinforce',        'false',        'Do reinforcement learning')
    cmd:option('-taxonomy',        '',        'Do reinforcement learning')
-   cmd:option('-rewardScale',        0.0,        'Do reinforcement learning')
+   cmd:option('-rewardScale',        1.0,        'Do reinforcement learning')
+   cmd:option('-reinforceWeight',   0.1,        'Do reinforcement learning')
    cmd:text()
 
    local opt = cmd:parse(arg or {})
@@ -64,6 +65,7 @@ function M.parse(arg)
    opt.shareGradInput = opt.shareGradInput ~= 'false'
    opt.optnet = opt.optnet ~= 'false'
    opt.resetClassifier = opt.resetClassifier ~= 'false'
+   opt.reinforce = opt.reinforce ~= 'false'
 
    if not paths.dirp(opt.save) and not paths.mkdir(opt.save) then
       cmd:error('error: unable to create checkpoint directory: ' .. opt.save .. '\n')
@@ -102,13 +104,13 @@ function M.parse(arg)
       cmd:error('error: cannot use both -shareGradInput and -optnet')
    end
 
-   --if opt.reinforce and not paths.filep(opt.taxonomy) then
-   --   cmd:error('error: missing taxonomy file')
-   --end
+   if opt.reinforce and not paths.filep(opt.taxonomy) then
+      cmd:error('error: missing taxonomy file')
+   end
 
-   --if opt.reinforce and opt.rewardScale == 0.0 then
-   --   cmd:error('error: missing reward sacle')
-   --end
+   if opt.reinforce and opt.rewardScale == 0.0 then
+      cmd:error('error: missing reward sacle')
+   end
 
    return opt
 end

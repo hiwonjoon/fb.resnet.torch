@@ -1,1 +1,1 @@
-th main.lua -reinforce true -taxonomy ./taxonomy-food.txt -rewardScale 1 -retrain ~/efs/model/torch-resnet-pretarined/resnet-34.t7 -data ~/efs/dataset/nv_dlcontest/ -resetClassifier true -nClasses 120 -gen ~/efs/torch-chkpoint/ -save ~/efs/torch-chkpoint/reinforce/ -LR 0.01 -optnet true
+th main.lua -dataset cifar100 -depth 32 -testSet false -reinforce true -taxonomy ./taxonomy-cifar100.txt -rewardScale 1 -reinforceWeight 0.1 -gen ~/efs/torch-chkpoint/ -save ~/efs/torch-chkpoint/reinforce/ -LR 0.1 -batchSize 256

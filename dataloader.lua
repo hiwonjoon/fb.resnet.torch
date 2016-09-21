@@ -22,7 +22,7 @@ function DataLoader.create(opt)
    local loaders = {}
 
    local sets
-   if opt.testSet then
+   if opt.testSet == true then
        sets = {'train','val','test'}
    else
        sets = {'train','val'}

@@ -48,6 +48,7 @@ function VRTaxonomyReward:updateOutput(inputTable, target)
 
    -- loss = -sum(reward)
    self.output = -self.reward:sum()
+   --self.output = self.reward:sum()
    if self.sizeAverage then
       self.output = self.output/input:size(1)
    end
@@ -73,6 +74,7 @@ function VRTaxonomyReward:updateGradInput(inputTable, target)
    self.gradInput[1] = self:fromBatch(self.gradInput[1], 1)
 
    -- learn the baseline reward
+   self.criterion:forward(baseline, self.reward)
    self.gradInput[2] = self.criterion:backward(baseline, self.reward)
    self.gradInput[2] = self:fromBatch(self.gradInput[2], 1)
    return self.gradInput

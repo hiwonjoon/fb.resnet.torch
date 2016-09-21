@@ -95,7 +95,7 @@ function Trainer:train_reinforce(epoch, dataloader)
    end
 
    local trainSize = dataloader:size()
-   local top1Sum, rewardSum, lossSum = 0.0, 0.0, 0.0
+   local top1Sum, top5Sum, rewardSum, lossSum = 0.0, 0.0, 0.0, 0.0
    local N = 0
 
    print('=> Training epoch # ' .. epoch)
@@ -110,7 +110,8 @@ function Trainer:train_reinforce(epoch, dataloader)
       --local output = self.model:forward(self.input):float()
       --local batchSize = output:size(1)
       --local loss = self.criterion:forward(self.model.output, self.target)
-      local pred, reward = unpack(self.model:forward(self.input))
+      local pred, reinforce = unpack(self.model:forward(self.input))
+      local stochastic_pred, reward = unpack(reinforce)
       local batchSize = pred:size(1)
       local loss = self.criterion:forward(self.model.output, self.target)
 
@@ -122,17 +123,15 @@ function Trainer:train_reinforce(epoch, dataloader)
 
       -- TODO : 중간에서 softmax값 뺴오는게 가능할 거야.
       --local top1, top5 = self:computeScore(output, sample.target, 1)
-      local correct = pred:eq(self.target:view(batchSize, 1):expandAs(pred))
-
-      -- Top-1 score
-      local top1 = (1.0 - (correct:narrow(2, 1, 1):sum() / batchSize)) * 100
+      local top1, top5 = self:computeScore(pred, sample.target, 1)
       top1Sum = top1Sum + top1*batchSize
+      top5Sum = top5Sum + top5*batchSize
       rewardSum = rewardSum + reward:sum()
       lossSum = lossSum + loss*batchSize
       N = N + batchSize
 
-      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  reward %7.3f'):format(
-         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, reward[1][1]))
+      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f reward %7.3f'):format(
+         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5, reward[1][1]))
 
       -- check that the storage didn't get changed do to an unfortunate getParameters call
       assert(self.params:storage() == self.model:parameters()[1]:storage())
@@ -141,7 +140,7 @@ function Trainer:train_reinforce(epoch, dataloader)
       dataTimer:reset()
    end
 
-   return top1Sum / N, rewardSum / N, lossSum / N
+   return top1Sum / N, top5Sum / N, rewardSum / N, lossSum / N
 end
 function Trainer:test(epoch, dataloader)
    -- Computes the top-1 and top-5 err on the validation set

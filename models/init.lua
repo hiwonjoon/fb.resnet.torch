@@ -68,27 +68,24 @@ function M.setup(opt, checkpoint)
       model:remove(#model.modules)
       model:add(linear:cuda())
    end
-   if opt.reinforce and torch.type(model:get(#model.modules)) ~= 'concat' then
+   if opt.reinforce == true and torch.type(model:get(#model.modules)) ~= 'concat' then
       print ' => Add Reinforce Module!'
-      model:add(nn.SoftMax())
-      model:add(nn.ReinforceCategorical(true)) --pick based on probability
+      reinforce = nn.Sequential()
+      reinforce:add(nn.SoftMax())
+      reinforce:add(nn.ReinforceCategorical(true)) --pick based on probability
 
-      -- 2-way loss가 가능하지만, 일단은 순수한 reinforce만.
-      --model:add(nn.LogSoftMax())
+      ordinary = nn.Sequential():add(nn.LogSoftMax())
 
       -- add the baseline reward predictor
       seq = nn.Sequential()
       seq:add(nn.Constant(1,1))
       seq:add(nn.Add(1))
-      --concat = nn.ConcatTable():add(nn.Identity()):add(seq)
-      --concat2 = nn.ConcatTable():add(nn.Identity()):add(concat)
 
-      ---- output will be : {classpred, {classpred, basereward}}
-      --agent:add(concat2)
+      --output will be : {class_prediction, {stochastic_classpred, basereward}}
+      concat = nn.ConcatTable():add(reinforce):add(seq)
+      concat2 = nn.ConcatTable():add(ordinary):add(concat)
 
-      --output will be : {stochastic_classpred, basereward}
-      concat = nn.ConcatTable():add(nn.Identity()):add(seq)
-      model:add(concat)
+      model:add(concat2)
       model:cuda()
    end
 
@@ -119,10 +116,12 @@ function M.setup(opt, checkpoint)
       model = dpt:cuda()
    end
 
-   if opt.reinforce then
-      local taxonomy = Taxonomy(opt)
-      local criterion = nn.VRTaxonomyReward(model, taxonomy, opt.rewardScale):cuda() -- REINFORCE
-      return model, criterion
+   if opt.reinforce == true then
+      local nll_criterion = nn.ClassNLLCriterion()
+      local reinforce_criterion = nn.VRTaxonomyReward(model, Taxonomy(opt), opt.rewardScale)
+      return model, nn.ParallelCriterion(true)
+                        :add(nn.ModuleCriterion(nll_criterion,nil,nn.Convert()),1)
+                        :add(nn.ModuleCriterion(reinforce_criterion,nil,nn.Convert()),0.1):cuda()
    else
       local criterion = nn.CrossEntropyCriterion():cuda()
       return model, criterion

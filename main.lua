@@ -48,15 +48,15 @@ for epoch = startEpoch, opt.nEpochs do
    -- Train for a single epoch
 
    local trainTop1, trainTop5, trainLoss, reward
-   if( opt.reinforce ) then
-      trainTop1, trainLoss, reward  = trainer:train_reinforce(epoch, trainLoader)
+   if( opt.reinforce == true ) then
+      trainTop1, trainTop5, trainLoss, reward  = trainer:train_reinforce(epoch, trainLoader)
    else
       trainTop1, trainTop5, trainLoss = trainer:train(epoch, trainLoader)
    end
 
    -- Run model on validation set
    local testTop1, testTop5
-   if( opt.reinforce ) then
+   if( opt.reinforce == true ) then
        testTop1, testTop5 = trainer:test_reinforce(epoch, valLoader)
    else
        testTop1, testTop5 = trainer:test(epoch, valLoader)
