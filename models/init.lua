@@ -68,7 +68,7 @@ function M.setup(opt, checkpoint)
       model:remove(#model.modules)
       model:add(linear:cuda())
    end
-   if opt.reinforce == true and torch.type(model:get(#model.modules)) ~= 'concat' then
+   if opt.reinforce == true and torch.type(model:get(#model.modules)) ~= 'nn.ConcatTable' then
       print ' => Add Reinforce Module!'
       reinforce = nn.Sequential()
       reinforce:add(nn.SoftMax())

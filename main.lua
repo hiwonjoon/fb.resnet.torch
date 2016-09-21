@@ -36,7 +36,12 @@ local trainLoader, valLoader = DataLoader.create(opt)
 local trainer = Trainer(model, criterion, opt, optimState)
 
 if opt.testOnly then
-   local top1Err, top5Err = trainer:test(0, valLoader)
+   local top1Err, top5Err
+   if opt.reinforce then
+      top1Err, top5Err = trainer:test_reinforce(0, valLoader)
+   else
+      top1Err, top5Err = trainer:test(0, valLoader)
+   end
    print(string.format(' * Results top1: %6.3f  top5: %6.3f', top1Err, top5Err))
    return
 end

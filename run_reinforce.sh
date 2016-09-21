@@ -1,1 +1,2 @@
-th main.lua -dataset cifar100 -depth 32 -testSet false -reinforce true -taxonomy ./taxonomy-cifar100.txt -rewardScale 1 -reinforceWeight 0.1 -gen ~/efs/torch-chkpoint/ -save ~/efs/torch-chkpoint/reinforce/ -LR 0.1 -batchSize 256
+# th main.lua -dataset cifar100 -depth 32 -testSet false -reinforce true -taxonomy ./taxonomy-cifar100.txt -rewardScale 1 -reinforceWeight 0.1 -gen ~/efs/torch-chkpoint/ -save ~/efs/torch-chkpoint/reinforce/ -LR 0.1 -batchSize 256
+th main.lua -dataset cifar100 -testOnly true -reinforce true -taxonomy ./taxonomy-cifar100.txt -retrain ~/efs/torch-chkpoint/reinforce/model_160.t7 -taxonomy ./taxonomy-cifar100.txt -rewardScale 1 -reinforceWeight 0.1 -gen ~/efs/torch-chkpoint/ -save ~/efs/torch-chkpoint/reinforce/ -LR 0.1 -batchSize 256
